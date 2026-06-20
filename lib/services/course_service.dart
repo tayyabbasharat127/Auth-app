@@ -1,13 +1,14 @@
 import 'dart:convert';
-import 'dart:io';
+
+import 'package:http/http.dart' as http;
 
 import '../models/course_model.dart';
 
 class CourseService {
-  static const String _baseUrl = 'jsonplaceholder.typicode.com';
-  final HttpClient _client;
+  static const String _baseUrl = 'https://jsonplaceholder.typicode.com';
+  final http.Client _client;
 
-  CourseService({HttpClient? client}) : _client = client ?? HttpClient();
+  CourseService({http.Client? client}) : _client = client ?? http.Client();
 
   Future<List<CourseModel>> fetchCourses() async {
     final response = await _send('GET', '/posts');
@@ -54,17 +55,34 @@ class CourseService {
     String path, {
     Map<String, dynamic>? body,
   }) async {
-    final uri = Uri.https(_baseUrl, path);
-    final request = await _client.openUrl(method, uri);
-    request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+    final uri = Uri.parse('$_baseUrl$path');
+    final headers = {'Accept': 'application/json'};
+    http.Response response;
 
-    if (body != null) {
-      request.headers.contentType = ContentType.json;
-      request.write(jsonEncode(body));
+    switch (method) {
+      case 'GET':
+        response = await _client.get(uri, headers: headers);
+        break;
+      case 'POST':
+        response = await _client.post(
+          uri,
+          headers: {...headers, 'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        );
+        break;
+      case 'PUT':
+        response = await _client.put(
+          uri,
+          headers: {...headers, 'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        );
+        break;
+      case 'DELETE':
+        response = await _client.delete(uri, headers: headers);
+        break;
+      default:
+        throw const CourseApiException('Unsupported request method.');
     }
-
-    final response = await request.close();
-    final responseBody = await response.transform(utf8.decoder).join();
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw CourseApiException(
@@ -72,7 +90,7 @@ class CourseService {
       );
     }
 
-    return responseBody;
+    return response.body;
   }
 }
 

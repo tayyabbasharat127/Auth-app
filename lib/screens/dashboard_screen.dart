@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../controllers/auth_controller.dart';
 import '../models/course_model.dart';
 import '../models/user_model.dart';
-import '../services/course_service.dart';
+import '../providers/course_provider.dart';
 import 'course_form_screen.dart';
 import 'detail_screen.dart';
 import 'login_screen.dart';
@@ -18,134 +19,103 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final CourseService _courseService = CourseService();
-
-  List<CourseModel> _courses = [];
-  bool _isLoading = true;
-  String? _errorMessage;
-  int? _busyCourseId;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _loadCourses();
-  }
-
-  Future<void> _loadCourses() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<CourseProvider>().loadCourses();
     });
-
-    try {
-      final courses = await _courseService.fetchCourses();
-      if (!mounted) return;
-      setState(() => _courses = courses);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _errorMessage = e.toString());
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
   }
 
-  Future<void> _logout(BuildContext context) async {
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // ── Actions ───────────────────────────────────────────────────────────────
+
+  Future<void> _logout() async {
     await AuthController().logout();
-    if (!context.mounted) return;
+    if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const LoginScreen()),
       (_) => false,
     );
   }
 
-  Future<void> _addCourse() async {
+  Future<void> _addCourse(CourseProvider provider) async {
     final draft = await Navigator.of(context).push<CourseModel>(
       MaterialPageRoute(builder: (_) => const CourseFormScreen()),
     );
+    if (draft == null || !mounted) return;
 
-    if (draft == null) return;
+    final success = await provider.addCourse(
+      title: draft.title,
+      description: draft.description,
+    );
+    if (!mounted) return;
 
-    setState(() => _isLoading = true);
-
-    try {
-      final created = await _courseService.addCourse(
-        title: draft.title,
-        description: draft.description,
-      );
-
-      if (!mounted) return;
-      setState(() => _courses = [created, ..._courses]);
-      _showMessage('Course added successfully.');
-    } catch (e) {
-      if (!mounted) return;
-      _showMessage(e.toString(), isError: true);
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+    _showMessage(
+      success
+          ? 'Course added successfully.'
+          : (provider.errorMessage ?? 'Failed to add course.'),
+      isError: !success,
+    );
+    if (!success) provider.clearError();
   }
 
-  Future<void> _editCourse(CourseModel course) async {
+  Future<void> _editCourse(CourseProvider provider, CourseModel course) async {
     final edited = await Navigator.of(context).push<CourseModel>(
       MaterialPageRoute(builder: (_) => CourseFormScreen(course: course)),
     );
+    if (edited == null || !mounted) return;
 
-    if (edited == null) return;
+    final success = await provider.updateCourse(edited);
+    if (!mounted) return;
 
-    setState(() => _busyCourseId = course.id);
-
-    try {
-      final updated = await _courseService.updateCourse(edited);
-      if (!mounted) return;
-      setState(() {
-        _courses = _courses
-            .map((item) => item.id == updated.id ? updated : item)
-            .toList();
-      });
-      _showMessage('Course updated successfully.');
-    } catch (e) {
-      if (!mounted) return;
-      _showMessage(e.toString(), isError: true);
-    } finally {
-      if (mounted) setState(() => _busyCourseId = null);
-    }
+    _showMessage(
+      success
+          ? 'Course updated successfully.'
+          : (provider.errorMessage ?? 'Failed to update course.'),
+      isError: !success,
+    );
+    if (!success) provider.clearError();
   }
 
-  Future<void> _deleteCourse(CourseModel course) async {
-    final shouldDelete = await showDialog<bool>(
+  Future<void> _deleteCourse(
+      CourseProvider provider, CourseModel course) async {
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: const Text('Delete course?'),
         content: Text('This will remove "${course.title}" from the list.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => Navigator.of(ctx).pop(false),
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('Delete'),
           ),
         ],
       ),
     );
+    if (confirmed != true || !mounted) return;
 
-    if (shouldDelete != true) return;
+    final success = await provider.deleteCourse(course.id);
+    if (!mounted) return;
 
-    setState(() => _busyCourseId = course.id);
-
-    try {
-      await _courseService.deleteCourse(course.id);
-      if (!mounted) return;
-      setState(() {
-        _courses = _courses.where((item) => item.id != course.id).toList();
-      });
-      _showMessage('Course deleted successfully.');
-    } catch (e) {
-      if (!mounted) return;
-      _showMessage(e.toString(), isError: true);
-    } finally {
-      if (mounted) setState(() => _busyCourseId = null);
-    }
+    _showMessage(
+      success
+          ? 'Course deleted.'
+          : (provider.errorMessage ?? 'Failed to delete course.'),
+      isError: !success,
+    );
+    if (!success) provider.clearError();
   }
 
   void _showMessage(String message, {bool isError = false}) {
@@ -157,12 +127,221 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildBody(ThemeData theme) {
-    if (_isLoading && _courses.isEmpty) {
+  // ── Build ─────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<CourseProvider>(
+      builder: (context, provider, _) {
+        final theme = Theme.of(context);
+
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Course Dashboard'),
+            backgroundColor: theme.colorScheme.primary,
+            foregroundColor: Colors.white,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Refresh courses',
+                onPressed: provider.isLoading ? null : provider.loadCourses,
+              ),
+              IconButton(
+                icon: const Icon(Icons.logout),
+                tooltip: 'Logout',
+                onPressed: _logout,
+              ),
+            ],
+          ),
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed:
+                provider.isLoading ? null : () => _addCourse(provider),
+            icon: const Icon(Icons.add),
+            label: const Text('Course'),
+          ),
+          body: Column(
+            children: [
+              // Offline banner — visible when last load came from cache
+              if (provider.isOffline)
+                _OfflineBanner(onRetry: provider.loadCourses),
+
+              // User profile header
+              _UserHeader(user: widget.user, theme: theme),
+
+              // Section label + search bar
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Courses',
+                            style: theme.textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        if (provider.isLoading)
+                          const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _searchController,
+                      onChanged: provider.setSearchQuery,
+                      decoration: InputDecoration(
+                        hintText: 'Search courses…',
+                        prefixIcon: const Icon(Icons.search),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        suffixIcon: provider.searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  provider.setSearchQuery('');
+                                },
+                              )
+                            : null,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Main content
+              Expanded(
+                child: _CourseBody(
+                  provider: provider,
+                  theme: theme,
+                  onEdit: (c) => _editCourse(provider, c),
+                  onDelete: (c) => _deleteCourse(provider, c),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── Sub-widgets ───────────────────────────────────────────────────────────────
+
+class _OfflineBanner extends StatelessWidget {
+  final VoidCallback onRetry;
+
+  const _OfflineBanner({required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: Colors.orange.shade700,
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+      child: Row(
+        children: [
+          const Icon(Icons.wifi_off, color: Colors.white, size: 16),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text(
+              'You are offline — showing cached courses.',
+              style: TextStyle(color: Colors.white, fontSize: 13),
+            ),
+          ),
+          TextButton(
+            onPressed: onRetry,
+            style: TextButton.styleFrom(foregroundColor: Colors.white),
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UserHeader extends StatelessWidget {
+  final UserModel user;
+  final ThemeData theme;
+
+  const _UserHeader({required this.user, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: theme.colorScheme.primary.withValues(alpha: 0.08),
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 36,
+            backgroundColor: theme.colorScheme.primary,
+            child: Text(
+              user.firstName.isNotEmpty
+                  ? user.firstName[0].toUpperCase()
+                  : '?',
+              style: const TextStyle(
+                fontSize: 28,
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Hello, ${user.fullName}',
+                  style: theme.textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  user.email,
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: Colors.grey[600]),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CourseBody extends StatelessWidget {
+  final CourseProvider provider;
+  final ThemeData theme;
+  final void Function(CourseModel) onEdit;
+  final void Function(CourseModel) onDelete;
+
+  const _CourseBody({
+    required this.provider,
+    required this.theme,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Full-screen spinner on initial load
+    if (provider.status == CourseStatus.loading && provider.courses.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_errorMessage != null && _courses.isEmpty) {
+    // Error with no cached data
+    if (provider.status == CourseStatus.error && provider.courses.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -178,13 +357,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                _errorMessage!,
+                provider.errorMessage ?? 'An unexpected error occurred.',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium,
               ),
               const SizedBox(height: 16),
               FilledButton.icon(
-                onPressed: _loadCourses,
+                onPressed: provider.loadCourses,
                 icon: const Icon(Icons.refresh),
                 label: const Text('Try Again'),
               ),
@@ -194,123 +373,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
+    // Empty state (no search match or no courses at all)
+    if (provider.courses.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.school_outlined, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 12),
+            Text(
+              provider.searchQuery.isNotEmpty
+                  ? 'No courses match "${provider.searchQuery}"'
+                  : 'No courses yet.\nTap + to add one.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyLarge
+                  ?.copyWith(color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      );
+    }
+
     return RefreshIndicator(
-      onRefresh: _loadCourses,
+      onRefresh: provider.loadCourses,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        itemCount: _courses.length,
+        itemCount: provider.courses.length,
         separatorBuilder: (_, __) => const SizedBox(height: 8),
         itemBuilder: (context, index) {
-          final course = _courses[index];
+          final course = provider.courses[index];
           return _CourseCard(
             course: course,
-            isBusy: _busyCourseId == course.id,
+            isBusy: provider.busyCourseId == course.id,
             onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => DetailScreen(course: course),
-              ),
+              MaterialPageRoute(builder: (_) => DetailScreen(course: course)),
             ),
-            onEdit: () => _editCourse(course),
-            onDelete: () => _deleteCourse(course),
+            onEdit: () => onEdit(course),
+            onDelete: () => onDelete(course),
           );
         },
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Course Dashboard'),
-        backgroundColor: theme.colorScheme.primary,
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh courses',
-            onPressed: _isLoading ? null : _loadCourses,
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Logout',
-            onPressed: () => _logout(context),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _isLoading ? null : _addCourse,
-        icon: const Icon(Icons.add),
-        label: const Text('Course'),
-      ),
-      body: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            color: theme.colorScheme.primary.withOpacity(0.08),
-            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 36,
-                  backgroundColor: theme.colorScheme.primary,
-                  child: Text(
-                    widget.user.firstName.isNotEmpty
-                        ? widget.user.firstName[0].toUpperCase()
-                        : '?',
-                    style: const TextStyle(
-                      fontSize: 28,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Hello, ${widget.user.fullName}',
-                        style: theme.textTheme.titleLarge
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        widget.user.email,
-                        style: theme.textTheme.bodyMedium
-                            ?.copyWith(color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Courses',
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                if (_isLoading)
-                  const SizedBox(
-                    height: 18,
-                    width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-              ],
-            ),
-          ),
-          Expanded(child: _buildBody(theme)),
-        ],
       ),
     );
   }
@@ -350,7 +451,7 @@ class _CourseCard extends StatelessWidget {
                 width: 52,
                 height: 52,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.12),
+                  color: color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(Icons.menu_book, color: color, size: 28),
@@ -379,7 +480,8 @@ class _CourseCard extends StatelessWidget {
                       course.description,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                      style:
+                          TextStyle(color: Colors.grey[700], fontSize: 13),
                     ),
                   ],
                 ),

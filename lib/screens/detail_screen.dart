@@ -34,14 +34,14 @@ class DetailScreen extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [color, color.withOpacity(0.72)],
+                    colors: [color, color.withValues(alpha: 0.72)],
                   ),
                 ),
                 child: Center(
                   child: Icon(
                     Icons.menu_book,
                     size: 96,
-                    color: Colors.white.withOpacity(0.3),
+                    color: Colors.white.withValues(alpha: 0.3),
                   ),
                 ),
               ),
@@ -55,7 +55,7 @@ class DetailScreen extends StatelessWidget {
                 children: [
                   Chip(
                     label: Text('ID: ${course.id}'),
-                    backgroundColor: color.withOpacity(0.12),
+                    backgroundColor: color.withValues(alpha: 0.12),
                     labelStyle: TextStyle(
                       color: color,
                       fontWeight: FontWeight.w600,
@@ -144,9 +144,9 @@ class _InfoRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.06),
+        color: color.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.15)),
+        border: Border.all(color: color.withValues(alpha: 0.15)),
       ),
       child: Row(
         children: [

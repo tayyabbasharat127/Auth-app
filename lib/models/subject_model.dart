@@ -22,7 +22,7 @@ class SubjectModel {
 
 /// Static list of subjects shown on the dashboard
 final List<SubjectModel> appSubjects = [
-  SubjectModel(
+  const SubjectModel(
     name: 'Mobile App Development',
     code: 'MAD401',
     description:
@@ -33,7 +33,7 @@ final List<SubjectModel> appSubjects = [
     room: 'Lab 3, Building B',
     category: SubjectCategory.mobileDev,
   ),
-  SubjectModel(
+  const SubjectModel(
     name: 'Software Re-engineering',
     code: 'SRE302',
     description:
@@ -44,7 +44,7 @@ final List<SubjectModel> appSubjects = [
     room: 'Room 201, Building A',
     category: SubjectCategory.softwareEngineering,
   ),
-  SubjectModel(
+  const SubjectModel(
     name: 'Management Information Systems (MIS)',
     code: 'MIS201',
     description:

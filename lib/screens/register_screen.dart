@@ -125,7 +125,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 AppTextField(
                   controller: _firstNameCtrl,
                   label: 'First Name',
-                  validator: (v) => Validators.required(v, fieldName: 'First name'),
+                  validator: (v) =>
+                      Validators.required(v, fieldName: 'First name'),
                 ),
                 const SizedBox(height: 16),
 
@@ -133,7 +134,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 AppTextField(
                   controller: _lastNameCtrl,
                   label: 'Last Name',
-                  validator: (v) => Validators.required(v, fieldName: 'Last name'),
+                  validator: (v) =>
+                      Validators.required(v, fieldName: 'Last name'),
                 ),
                 const SizedBox(height: 16),
 
@@ -148,7 +150,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                 // Gender Dropdown
                 DropdownButtonFormField<Gender>(
-                  value: _selectedGender,
+                  initialValue: _selectedGender,
                   decoration: const InputDecoration(labelText: 'Gender'),
                   items: Gender.values
                       .map((g) => DropdownMenuItem(
