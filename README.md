@@ -161,11 +161,21 @@ On any failure an error snackbar is shown and the error is cleared from the prov
 
 ## Screenshots
 
-### Offline Cache & State Management
+### Course Dashboard & Detail (Extension)
 
 | Course Dashboard | Course Detail |
 |-----------------|--------------|
 | ![Course Dashboard](lib/Screenshots/course_api_run.png) | ![Course Detail](lib/Screenshots/Course_details.png) |
+
+### Authentication Screens (Base App)
+
+| Register | Login |
+|----------|-------|
+| ![Register](lib/Screenshots/register.png.png) | ![Login](lib/Screenshots/login.png.png) |
+
+| Dashboard | Detail |
+|-----------|--------|
+| ![Dashboard](lib/Screenshots/dashboard.png.png) | ![Detail](lib/Screenshots/detail.png.png) |
 
 ---
 
