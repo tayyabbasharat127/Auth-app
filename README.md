@@ -18,6 +18,8 @@
 feature/offline-cache-and-state-manangement
 ```
 
+**Branch Link:** https://github.com/tayyabbasharat127/Auth-app/tree/feature/offline-cache-and-state-manangement
+
 ---
 
 ## Tools and Packages Used
