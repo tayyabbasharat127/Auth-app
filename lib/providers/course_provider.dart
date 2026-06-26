@@ -53,10 +53,7 @@ class CourseProvider extends ChangeNotifier {
     notifyListeners();
 
     final results = await Connectivity().checkConnectivity();
-    _isOffline = !results.any((r) =>
-        r == ConnectivityResult.wifi ||
-        r == ConnectivityResult.mobile ||
-        r == ConnectivityResult.ethernet);
+    _isOffline = results.every((r) => r == ConnectivityResult.none);
 
     try {
       final fetched = await _repository.fetchCourses();

@@ -16,10 +16,7 @@ class CourseRepository {
 
   Future<bool> get _isOnline async {
     final results = await Connectivity().checkConnectivity();
-    return results.any((r) =>
-        r == ConnectivityResult.wifi ||
-        r == ConnectivityResult.mobile ||
-        r == ConnectivityResult.ethernet);
+    return !results.every((r) => r == ConnectivityResult.none);
   }
 
   /// Fetches courses from the API when online and caches them locally.
